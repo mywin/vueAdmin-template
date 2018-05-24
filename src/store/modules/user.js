@@ -1,71 +1,95 @@
-import { login, logout, getInfo } from '@/api/login'
-import { getToken, setToken, removeToken } from '@/utils/auth'
-
-const user = {
-  state: {
-    token: getToken(),
-    name: '',
-    avatar: '',
-    roles: []
+import * as api from '@/api/user'
+export default {
+  namespaced: true,
+  getters: {
+    name: state => state.name,
+    token: state => state.token,
+    avatar: state => state.avatar,
+    routes: state => state.routes
   },
-
+  state: {
+    token: null,
+    name: null,
+    avatar: null,
+    routes: null
+  },
   mutations: {
-    SET_TOKEN: (state, token) => {
-      state.token = token
+    SET(state, object) {
+      for (const key in object) {
+        if (object instanceof Object) {
+          if (state.hasOwnProperty(key)) {
+            state[key] = object[key]
+          }
+        }
+      }
     },
-    SET_NAME: (state, name) => {
-      state.name = name
-    },
-    SET_AVATAR: (state, avatar) => {
-      state.avatar = avatar
-    },
-    SET_ROLES: (state, roles) => {
-      state.roles = roles
+    DEL(state, keys) {
+      if (keys instanceof Array) {
+        keys.find(key => {
+          if (state.hasOwnProperty(key)) {
+            state[key] = ''
+          }
+        })
+      }
     }
   },
-
   actions: {
     // 登录
-    Login({ commit }, userInfo) {
-      const username = userInfo.username.trim()
+    Login({ commit }, { username, password }) {
       return new Promise((resolve, reject) => {
-        login(username, userInfo.password).then(response => {
-          const data = response.data
-          setToken(data.token)
-          commit('SET_TOKEN', data.token)
+        api.user_login_post({
+          username: username.trim(),
+          password: password
+        }).then(res => {
+          commit('SET', res.result)
           resolve()
-        }).catch(error => {
-          reject(error)
+        }).catch(err => {
+          console.log(err)
+          reject(err)
         })
       })
     },
-
     // 获取用户信息
     GetInfo({ commit, state }) {
       return new Promise((resolve, reject) => {
-        getInfo(state.token).then(response => {
-          const data = response.data
-          if (data.roles && data.roles.length > 0) { // 验证返回的roles是否是一个非空数组
-            commit('SET_ROLES', data.roles)
-          } else {
-            reject('getInfo: roles must be a non-null array !')
+        api.user_info_get({
+          params: {
+            token: state.token
           }
-          commit('SET_NAME', data.name)
-          commit('SET_AVATAR', data.avatar)
-          resolve(response)
-        }).catch(error => {
-          reject(error)
+        }).then(res => {
+          resolve(res.result)
+        })
+      })
+    },
+    // 获取用户信息
+    GetItems({ commit, state }, options) {
+      return new Promise((resolve, reject) => {
+        api.user_items_get({
+          params: {
+            token: state.token,
+            ...options
+          }
+        }).then(res => {
+          resolve(res.result)
+        })
+      })
+    },
+    // 获取用户信息
+    DeleteItems({ commit, state }, ids) {
+      return new Promise((resolve, reject) => {
+        api.user_delete_post({
+          params: { ids }
+        }).then(res => {
+          resolve(res.result)
         })
       })
     },
 
     // 登出
-    LogOut({ commit, state }) {
+    Logout({ commit, state }) {
       return new Promise((resolve, reject) => {
-        logout(state.token).then(() => {
-          commit('SET_TOKEN', '')
-          commit('SET_ROLES', [])
-          removeToken()
+        api.user_logout_post(state.token).then((res) => {
+          commit('DEL', ['token', 'routes'])
           resolve()
         }).catch(error => {
           reject(error)
@@ -73,15 +97,12 @@ const user = {
       })
     },
 
-    // 前端 登出
-    FedLogOut({ commit }) {
+    // 前端登出
+    FedLogout({ commit }) {
       return new Promise(resolve => {
-        commit('SET_TOKEN', '')
-        removeToken()
+        commit('DEL', ['token'])
         resolve()
       })
     }
   }
 }
-
-export default user
